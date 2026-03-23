@@ -7,7 +7,7 @@ local WIDGET_ID = "AIGameBuilderDockWidget"
 local WIDGET_TITLE = "AI Game Builder"
 
 local API_BASE_URL = "https://ai-game-build.onrender.com" -- change if your backend is hosted elsewhere
-local API_KEY = "" -- set this to match backend APP_API_KEY (Render env var). Keep empty to disable auth.
+local API_KEY = "REPLACE_WITH_RENDER_APP_API_KEY" -- set this to match backend APP_API_KEY (Render env var). Keep empty to disable auth.
 local MEMORY_USER_ID = "default"
 
 local plannedToolCalls = nil
