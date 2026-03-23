@@ -680,6 +680,8 @@ end
 
 local templateButtonsByKey = {}
 
+local promptBox
+
 local function updateTemplateButtonStyles()
 	for key, btn in pairs(templateButtonsByKey) do
 		if key == selectedTemplateKey then
@@ -699,6 +701,9 @@ for _, t in ipairs(TEMPLATES) do
 	btn.MouseButton1Click:Connect(function()
 		selectedTemplateKey = t.key
 		updateTemplateButtonStyles()
+		if promptBox then
+			promptBox.Text = tostring(t.prompt or "")
+		end
 	end)
 end
 
@@ -709,11 +714,14 @@ clearTemplateButton.Parent = templatesRow
 clearTemplateButton.MouseButton1Click:Connect(function()
 	selectedTemplateKey = nil
 	updateTemplateButtonStyles()
+	if promptBox then
+		promptBox.Text = ""
+	end
 end)
 
 updateTemplateButtonStyles()
 
-local promptBox = Instance.new("TextBox")
+promptBox = Instance.new("TextBox")
 promptBox.LayoutOrder = 4
 promptBox.BackgroundColor3 = Color3.fromRGB(32, 32, 38)
 promptBox.BorderSizePixel = 0
