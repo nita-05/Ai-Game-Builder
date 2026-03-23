@@ -414,11 +414,22 @@ local widgetInfo = DockWidgetPluginGuiInfo.new(
 local widget = plugin:CreateDockWidgetPluginGui(WIDGET_ID, widgetInfo)
 widget.Title = WIDGET_TITLE
 
+local rootScroll = Instance.new("ScrollingFrame")
+rootScroll.BackgroundTransparency = 1
+rootScroll.BorderSizePixel = 0
+rootScroll.Size = UDim2.new(1, 0, 1, 0)
+rootScroll.ScrollBarThickness = 8
+rootScroll.ScrollingDirection = Enum.ScrollingDirection.Y
+rootScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+rootScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+rootScroll.Parent = widget
+
 local root = Instance.new("Frame")
 root.BackgroundColor3 = Color3.fromRGB(24, 24, 28)
 root.BorderSizePixel = 0
-root.Size = UDim2.new(1, 0, 1, 0)
-root.Parent = widget
+root.Size = UDim2.new(1, 0, 0, 0)
+root.AutomaticSize = Enum.AutomaticSize.Y
+root.Parent = rootScroll
 
 local padding = Instance.new("UIPadding")
 padding.PaddingLeft = UDim.new(0, 10)
@@ -432,6 +443,12 @@ layout.FillDirection = Enum.FillDirection.Vertical
 layout.SortOrder = Enum.SortOrder.LayoutOrder
 layout.Padding = UDim.new(0, 10)
 layout.Parent = root
+
+layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+	local h = layout.AbsoluteContentSize.Y + 20
+	root.Size = UDim2.new(1, 0, 0, h)
+	rootScroll.CanvasSize = UDim2.new(0, 0, 0, h)
+end)
 
 local header = Instance.new("TextLabel")
 header.LayoutOrder = 1
