@@ -6,7 +6,7 @@ local BUTTON_NAME = "Game Builder"
 local WIDGET_ID = "AIGameBuilderDockWidget"
 local WIDGET_TITLE = "AI Game Builder"
 
-local API_BASE_URL = "http://127.0.0.1:8000" -- change if your backend is hosted elsewhere
+local API_BASE_URL = "https://ai-game-build.onrender.com" -- change if your backend is hosted elsewhere
 local API_KEY = "" -- set this to match backend APP_API_KEY (Render env var). Keep empty to disable auth.
 local MEMORY_USER_ID = "default"
 
@@ -1712,4 +1712,4 @@ end)
 
 createLabel(scrolling, "Tips", true)
 createLabel(scrolling, "- Enable HttpService in Game Settings", false)
-createLabel(scrolling, "- If calling localhost, Roblox Studio must be able to reach 127.0.0.1:8000", false)
+createLabel(scrolling, "- If calls fail, verify Studio can reach the API_BASE_URL", false)
