@@ -449,43 +449,110 @@ local function insertScriptNoOverwrite(parentFolder, baseName, source)
 	return ok, err, finalName, scriptKey
 end
 
+local SCRIPT_SCAN_ROOT_SERVICES = {
+	"Workspace",
+	"ReplicatedStorage",
+	"ServerScriptService",
+	"ServerStorage",
+	"StarterPlayer",
+	"StarterGui",
+	"StarterPack",
+	"Lighting",
+	"Teams",
+	"SoundService",
+}
+
+local MAX_PREVIOUS_CODE_CHARS = 180000
+
+local function isCodeScript(instance)
+	return instance:IsA("Script") or instance:IsA("LocalScript") or instance:IsA("ModuleScript")
+end
+
+local function collectAllProjectScripts()
+	local scripts = {}
+	local seen = {}
+
+	for _, serviceName in ipairs(SCRIPT_SCAN_ROOT_SERVICES) do
+		local service = tryGetService(serviceName)
+		if service then
+			if isCodeScript(service) then
+				local fullName = service:GetFullName()
+				if not seen[fullName] then
+					seen[fullName] = true
+					local ok, source = pcall(function()
+						return service.Source
+					end)
+					if ok then
+						table.insert(scripts, {
+							path = fullName,
+							className = service.ClassName,
+							source = tostring(source or ""),
+						})
+					end
+				end
+			end
+
+			for _, child in ipairs(service:GetDescendants()) do
+				if isCodeScript(child) then
+					local fullName = child:GetFullName()
+					if not seen[fullName] then
+						seen[fullName] = true
+						local ok, source = pcall(function()
+							return child.Source
+						end)
+						if ok then
+							table.insert(scripts, {
+								path = fullName,
+								className = child.ClassName,
+								source = tostring(source or ""),
+							})
+						end
+					end
+				end
+			end
+		end
+	end
+
+	return scripts
+end
+
 local function collectPreviousCode()
-	local folder = workspace:FindFirstChild("AI_Generated")
-	if not folder or not folder:IsA("Folder") then
+	local scripts = collectAllProjectScripts()
+	if #scripts == 0 then
 		return nil
 	end
 
 	local parts = {}
-	for _, child in ipairs(folder:GetChildren()) do
-		if child:IsA("Script") then
-			table.insert(parts, "-- SCRIPT_NAME: " .. child.Name .. "\n" .. child.Source .. "\n")
+	local totalChars = 0
+	for _, item in ipairs(scripts) do
+		local block = table.concat({
+			"-- SCRIPT_PATH: ", item.path, "\n",
+			"-- SCRIPT_CLASS: ", item.className, "\n",
+			item.source, "\n\n",
+		})
+		totalChars += #block
+		if totalChars > MAX_PREVIOUS_CODE_CHARS then
+			break
 		end
+		table.insert(parts, block)
 	end
 
 	if #parts == 0 then
 		return nil
 	end
-
-	return table.concat(parts, "\n")
+	return table.concat(parts, "")
 end
 
 local function collectScriptsSnapshot()
-	local folder = workspace:FindFirstChild("AI_Generated")
-	if not folder or not folder:IsA("Folder") then
-		return {}
+	local scripts = collectAllProjectScripts()
+	local out = {}
+	for _, item in ipairs(scripts) do
+		table.insert(out, {
+			name = item.path,
+			source = item.source,
+		})
 	end
-
-	local scripts = {}
-	for _, child in ipairs(folder:GetChildren()) do
-		if child:IsA("Script") then
-			table.insert(scripts, {
-				name = child.Name,
-				source = child.Source,
-			})
-		end
-	end
-
-	return scripts
+	return out
 end
 
 local function appendStreamingText(parent, prefix, fullText)
@@ -1524,7 +1591,7 @@ local function runGenerate(isRefine)
 			local previousCode = collectPreviousCode()
 			if not previousCode then
 				stopProgressAnimation("Failed")
-				showError("No existing generated scripts found to refine")
+				showError("No scripts found in project scan to refine")
 				setBusy(false)
 				return
 			end
