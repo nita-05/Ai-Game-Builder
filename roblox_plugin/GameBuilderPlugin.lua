@@ -60,6 +60,14 @@ local TEMPLATES = {
 }
 
 local selectedTemplateKey = nil
+local EXPLORER_PATH_PROMPT_SUFFIX = table.concat({
+	"\n\nOutput rules (must follow exactly):",
+	"\n- Return steps where every step title is a Roblox Explorer path.",
+	"\n- Path format: Service/Folder/SubFolder/ScriptName",
+	"\n- Valid service examples: Workspace, ReplicatedStorage, ServerScriptService, ServerStorage, StarterPlayer, StarterGui, StarterPack, Lighting, Teams, SoundService.",
+	"\n- Do not use generic titles like 'Step 1' or 'Movement System'. Use only full paths in titles.",
+	"\n- Keep each step code Lua/Luau and scoped to its target script path.",
+}, "")
 
 local function buildPromptWithTemplate(userText)
 	local cleanedUser = tostring(userText or "")
@@ -85,6 +93,11 @@ local function buildPromptWithTemplate(userText)
 	end
 
 	return cleanedUser
+end
+
+local function withExplorerPathRules(promptText)
+	local base = tostring(promptText or "")
+	return base .. EXPLORER_PATH_PROMPT_SUFFIX
 end
 
 local function setCanvasToBottom(scrollingFrame)
@@ -1476,7 +1489,7 @@ local function callDebug(errorMessage, code)
 end
 
 local function runGenerate(isRefine)
-	local prompt = buildPromptWithTemplate(promptBox.Text)
+	local prompt = withExplorerPathRules(buildPromptWithTemplate(promptBox.Text))
 	if string.gsub(prompt, "%s+", "") == "" then
 		clearChildrenExceptLayout(scrolling)
 		showError("Prompt is empty")
