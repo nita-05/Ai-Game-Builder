@@ -218,6 +218,7 @@ end
 
 local scriptOriginalSourceByName = {}
 local scriptObjectByDebugKey = {}
+local aiTouchedScriptsByKey = {}
 local lastFixAttemptAtByName = {}
 local debugRetryCountByName = {}
 local MAX_DEBUG_RETRIES = 2
@@ -355,6 +356,25 @@ local function buildScriptKey(parentFolder, scriptName)
 	return string.sub(raw, 1, 120)
 end
 
+local function chooseScriptClassName(parentFolder)
+	local fullName = ""
+	local ok, value = pcall(function()
+		return parentFolder:GetFullName()
+	end)
+	if ok then
+		fullName = tostring(value or "")
+	end
+
+	if string.find(fullName, "StarterGui", 1, true)
+		or string.find(fullName, "PlayerGui", 1, true)
+		or string.find(fullName, "StarterPlayerScripts", 1, true)
+		or string.find(fullName, "StarterCharacterScripts", 1, true) then
+		return "LocalScript"
+	end
+
+	return "Script"
+end
+
 local function safeVector3(value, default)
 	default = default or Vector3.new(0, 0, 0)
 	if typeof(value) == "Vector3" then
@@ -440,13 +460,22 @@ end
 local function upsertScript(parentFolder, scriptName, source)
 	local existing = parentFolder:FindFirstChild(scriptName)
 	local scriptObj
-	if existing and existing:IsA("Script") then
+	local hadOriginal = false
+	local originalSource = nil
+	if existing and (existing:IsA("Script") or existing:IsA("LocalScript") or existing:IsA("ModuleScript")) then
 		scriptObj = existing
+		hadOriginal = true
+		local ok, src = pcall(function()
+			return existing.Source
+		end)
+		if ok then
+			originalSource = tostring(src or "")
+		end
 	else
 		if existing then
 			existing:Destroy()
 		end
-		scriptObj = Instance.new("Script")
+		scriptObj = Instance.new(chooseScriptClassName(parentFolder))
 		scriptObj.Name = scriptName
 		scriptObj.Parent = parentFolder
 	end
@@ -460,6 +489,13 @@ local function upsertScript(parentFolder, scriptName, source)
 	local ok, err = pcall(function()
 		scriptObj.Source = wrapped
 	end)
+	if ok then
+		aiTouchedScriptsByKey[scriptKey] = {
+			obj = scriptObj,
+			had_original = hadOriginal,
+			original_source = originalSource,
+		}
+	end
 
 	return ok, err, scriptKey
 end
@@ -477,7 +513,7 @@ local function insertScriptNoOverwrite(parentFolder, baseName, source)
 		n += 1
 	end
 
-	local scriptObj = Instance.new("Script")
+	local scriptObj = Instance.new(chooseScriptClassName(parentFolder))
 	scriptObj.Name = finalName
 	scriptObj.Parent = parentFolder
 
@@ -490,6 +526,13 @@ local function insertScriptNoOverwrite(parentFolder, baseName, source)
 	local ok, err = pcall(function()
 		scriptObj.Source = wrapped
 	end)
+	if ok then
+		aiTouchedScriptsByKey[scriptKey] = {
+			obj = scriptObj,
+			had_original = false,
+			original_source = nil,
+		}
+	end
 
 	return ok, err, finalName, scriptKey
 end
@@ -1201,6 +1244,27 @@ local function clearGeneratedArtifacts()
 			child:Destroy()
 		end
 	end
+
+	for key, rec in pairs(aiTouchedScriptsByKey) do
+		local obj = rec and rec.obj
+		if obj and obj.Parent then
+			if rec.had_original and type(rec.original_source) == "string" then
+				local restoreWrapped = wrapWithPcall(key, rec.original_source)
+				pcall(function()
+					obj.Source = restoreWrapped
+				end)
+			else
+				pcall(function()
+					obj:Destroy()
+				end)
+			end
+		end
+	end
+	aiTouchedScriptsByKey = {}
+	scriptOriginalSourceByName = {}
+	scriptObjectByDebugKey = {}
+	lastFixAttemptAtByName = {}
+	debugRetryCountByName = {}
 end
 
 local currentStepFrame = nil
@@ -2132,6 +2196,35 @@ local function tryAutoFixFromMessage(message)
 
 	task.spawn(function()
 		debugRetryCountByName[scriptName] = retryCount + 1
+		if string.find(msg, "attempt to index nil with 'WaitForChild'", 1, true) then
+			local deterministic = tostring(original or "")
+			deterministic = string.gsub(deterministic, ":FindFirstChild%(", ":WaitForChild(")
+			deterministic = string.gsub(
+				deterministic,
+				"([%a_][%w_]*)%.Character:WaitForChild%(",
+				"(%1.Character or %1.CharacterAdded:Wait()):WaitForChild("
+			)
+			if deterministic ~= tostring(original or "") then
+				local wrappedLocal = wrapWithPcall(scriptName, deterministic)
+				local okLocal, setErrLocal = pcall(function()
+					scriptObj.Source = wrappedLocal
+					if scriptObj:IsA("Script") or scriptObj:IsA("LocalScript") then
+						if scriptObj.Disabled then
+							scriptObj.Disabled = false
+						end
+					end
+				end)
+				if okLocal then
+					scriptOriginalSourceByName[scriptName] = deterministic
+					appendStreamingText(scrolling, "-- ", "Applied fast nil-WaitForChild guard for " .. scriptName .. "\n")
+					stopProgressAnimation("Fixed " .. scriptName)
+					return
+				else
+					appendStreamingText(scrolling, "-- ", "Fast guard failed: " .. tostring(setErrLocal) .. "\n")
+				end
+			end
+		end
+
 		local fixed, err = callDebug(msg, original)
 		if err then
 			appendStreamingText(scrolling, "-- ", "Fix failed: " .. tostring(err) .. "\n")
