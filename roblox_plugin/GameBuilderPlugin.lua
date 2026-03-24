@@ -1168,19 +1168,38 @@ local function addBuildButton(build)
 		end
 
 		local scripts = data.scripts_json
-		if type(scripts) ~= "table" then
-			buildsStatusLabel.Text = "Invalid build"
+		if type(scripts) ~= "table" or #scripts == 0 then
+			local steps = data.steps_json
+			if type(steps) == "table" and #steps > 0 then
+				scripts = {}
+				for i, step in ipairs(steps) do
+					table.insert(scripts, {
+						name = tostring(step.title or ("Step_" .. tostring(i))),
+						source = tostring(step.code or ""),
+					})
+				end
+			end
+		end
+
+		if type(scripts) ~= "table" or #scripts == 0 then
+			buildsStatusLabel.Text = "No scripts in build"
+			createLabel(scrolling, "Memory", true)
+			appendStreamingText(scrolling, "-- ", "Selected build has prompt/history but no script snapshot to restore.\n")
 			return
 		end
 
 		local folder = getOrCreateGeneratedFolder()
+		local loadedCount = 0
 		for _, s in ipairs(scripts) do
 			local name = sanitizeInstanceName(s.name or "Script")
 			local source = tostring(s.source or "")
-			upsertScript(folder, name, source)
+			local ok = upsertScript(folder, name, source)
+			if ok then
+				loadedCount += 1
+			end
 		end
 
-		buildsStatusLabel.Text = "Loaded"
+		buildsStatusLabel.Text = "Loaded (" .. tostring(loadedCount) .. ")"
 	end)
 end
 
