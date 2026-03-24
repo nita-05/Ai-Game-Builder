@@ -2196,7 +2196,9 @@ local function tryAutoFixFromMessage(message)
 
 	task.spawn(function()
 		debugRetryCountByName[scriptName] = retryCount + 1
-		if string.find(msg, "attempt to index nil with 'WaitForChild'", 1, true) then
+		if string.find(msg, "attempt to index nil with 'WaitForChild'", 1, true)
+			or string.find(msg, "attempt to index nil with 'Character'", 1, true)
+			or string.find(msg, "ResourceSpawnLocations is not a valid member of Workspace", 1, true) then
 			local deterministic = tostring(original or "")
 			deterministic = string.gsub(deterministic, ":FindFirstChild%(", ":WaitForChild(")
 			deterministic = string.gsub(
@@ -2204,6 +2206,30 @@ local function tryAutoFixFromMessage(message)
 				"([%a_][%w_]*)%.Character:WaitForChild%(",
 				"(%1.Character or %1.CharacterAdded:Wait()):WaitForChild("
 			)
+			deterministic = string.gsub(
+				deterministic,
+				"local%s+character%s*=%s*([%a_][%w_]*)%.Character",
+				"local character = (%1.Character or %1.CharacterAdded:Wait())"
+			)
+			deterministic = string.gsub(
+				deterministic,
+				"workspace%.ResourceSpawnLocations",
+				"(workspace:FindFirstChild(\"ResourceSpawnLocations\") or workspace)"
+			)
+
+			if string.find(deterministic, "LocalPlayer", 1, true)
+				and scriptObj:IsA("Script")
+				and scriptObj.Parent
+				and scriptObj.Parent.Name == "AI_Generated" then
+				local starterPlayer = game:GetService("StarterPlayer")
+				local starterScripts = starterPlayer:FindFirstChild("StarterPlayerScripts")
+				if starterScripts then
+					local moved = Instance.new("LocalScript")
+					moved.Name = scriptObj.Name
+					moved.Parent = starterScripts
+					scriptObj = moved
+				end
+			end
 			if deterministic ~= tostring(original or "") then
 				local wrappedLocal = wrapWithPcall(scriptName, deterministic)
 				local okLocal, setErrLocal = pcall(function()
