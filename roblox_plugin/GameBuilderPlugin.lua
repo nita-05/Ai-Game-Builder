@@ -32,6 +32,56 @@ local function safeJsonDecode(text)
 	return nil
 end
 
+local function extractJsonObjectText(text)
+	local raw = tostring(text or "")
+	if raw == "" then
+		return nil
+	end
+	local startIdx = string.find(raw, "{", 1, true)
+	local endIdx = string.find(string.reverse(raw), "}", 1, true)
+	if not startIdx or not endIdx then
+		return nil
+	end
+	local finalEnd = #raw - endIdx + 1
+	if finalEnd < startIdx then
+		return nil
+	end
+	return string.sub(raw, startIdx, finalEnd)
+end
+
+local function parseStepsFromTextFallback(text)
+	local raw = tostring(text or "")
+	local steps = {}
+	local currentTitle = nil
+	local currentCode = ""
+
+	local function flush()
+		if currentTitle and currentCode ~= "" then
+			table.insert(steps, {
+				title = currentTitle,
+				code = currentCode,
+			})
+		end
+	end
+
+	for line in string.gmatch(raw, "([^\n]*)\n?") do
+		local title = string.match(line, "^%[Step%s+%d+%]%s*(.-)%.%.%.$")
+		if title and title ~= "" then
+			flush()
+			currentTitle = title
+			currentCode = ""
+		elseif currentTitle then
+			currentCode = currentCode .. line .. "\n"
+		end
+	end
+	flush()
+
+	if #steps == 0 then
+		return nil
+	end
+	return { steps = steps }
+end
+
 local TEMPLATES = {
 	{
 		key = "obby",
@@ -109,6 +159,12 @@ local function setCanvasToBottom(scrollingFrame)
 	scrollingFrame.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 12)
 end
 
+local THEME_TEXT_PRIMARY = Color3.fromRGB(30, 41, 59)
+local THEME_TEXT_SECONDARY = Color3.fromRGB(100, 116, 139)
+local THEME_AI_BUBBLE = Color3.fromRGB(238, 242, 255)
+local THEME_USER_BUBBLE = Color3.fromRGB(220, 252, 231)
+local THEME_USER_BUBBLE_ACTIVE = Color3.fromRGB(187, 247, 208)
+
 local function createLabel(parent, text, isTitle)
 	local label = Instance.new("TextLabel")	
 	label.BackgroundTransparency = isTitle and 1 or 0
@@ -119,13 +175,13 @@ local function createLabel(parent, text, isTitle)
 	label.RichText = false
 	label.Font = isTitle and Enum.Font.GothamBold or Enum.Font.Gotham
 	label.TextSize = isTitle and 16 or 13
-	label.TextColor3 = isTitle and Color3.fromRGB(30, 41, 59) or Color3.fromRGB(30, 41, 59)
+	label.TextColor3 = isTitle and THEME_TEXT_PRIMARY or THEME_TEXT_PRIMARY
 	label.AutomaticSize = Enum.AutomaticSize.Y
 	label.Size = UDim2.new(1, -10, 0, 0)
 	label.Text = text
 	label.Parent = parent
 	if not isTitle then
-		label.BackgroundColor3 = Color3.fromRGB(238, 242, 255)
+		label.BackgroundColor3 = THEME_AI_BUBBLE
 		local pad = Instance.new("UIPadding")
 		pad.PaddingLeft = UDim.new(0, 10)
 		pad.PaddingRight = UDim.new(0, 10)
@@ -141,7 +197,7 @@ end
 
 local function createStepTitle(parent, text)
 	local frame = Instance.new("Frame")
-	frame.BackgroundColor3 = Color3.fromRGB(220, 252, 231)
+	frame.BackgroundColor3 = THEME_USER_BUBBLE
 	frame.BorderSizePixel = 0
 	frame.Size = UDim2.new(1, -12, 0, 28)
 	frame.AutomaticSize = Enum.AutomaticSize.Y
@@ -163,7 +219,7 @@ local function createStepTitle(parent, text)
 	label.RichText = false
 	label.Font = Enum.Font.GothamBold
 	label.TextSize = 13
-	label.TextColor3 = Color3.fromRGB(22, 101, 52)
+	label.TextColor3 = THEME_TEXT_PRIMARY
 	label.AutomaticSize = Enum.AutomaticSize.Y
 	label.Size = UDim2.new(1, 0, 0, 0)
 	label.Text = text
@@ -912,13 +968,18 @@ local templateButtonsByKey = {}
 local promptBox
 
 local function updateTemplateButtonStyles()
+	local theme = settings().Studio.Theme
+	local selectedBg = getThemeColor(theme, Enum.StudioStyleGuideColor.DialogMainButton)
+	local selectedText = getThemeColor(theme, Enum.StudioStyleGuideColor.DialogMainButtonText)
+	local normalBg = getThemeColor(theme, Enum.StudioStyleGuideColor.InputFieldBackground)
+	local normalText = getThemeColor(theme, Enum.StudioStyleGuideColor.MainText)
 	for key, btn in pairs(templateButtonsByKey) do
 		if key == selectedTemplateKey then
-			btn.BackgroundColor3 = Color3.fromRGB(79, 70, 229)
-			btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+			btn.BackgroundColor3 = selectedBg
+			btn.TextColor3 = selectedText
 		else
-			btn.BackgroundColor3 = Color3.fromRGB(241, 245, 249)
-			btn.TextColor3 = Color3.fromRGB(51, 65, 85)
+			btn.BackgroundColor3 = normalBg
+			btn.TextColor3 = normalText
 		end
 	end
 end
@@ -1093,6 +1154,105 @@ generateGradient.Color = ColorSequence.new({
 generateGradient.Rotation = 15
 generateGradient.Parent = generateButton
 
+local function getThemeColor(theme, colorEnum, modifier)
+	local ok, value = pcall(function()
+		return theme:GetColor(colorEnum, modifier or Enum.StudioStyleGuideModifier.Default)
+	end)
+	if ok and value then
+		return value
+	end
+	return Color3.fromRGB(255, 255, 255)
+end
+
+local function applyStudioTheme()
+	local studio = settings().Studio
+	local theme = studio.Theme
+
+	local mainBg = getThemeColor(theme, Enum.StudioStyleGuideColor.MainBackground)
+	local cardBg = getThemeColor(theme, Enum.StudioStyleGuideColor.Titlebar)
+	local border = getThemeColor(theme, Enum.StudioStyleGuideColor.Border)
+	local textPrimary = getThemeColor(theme, Enum.StudioStyleGuideColor.MainText)
+	local textSecondary = getThemeColor(theme, Enum.StudioStyleGuideColor.DimmedText)
+	local inputBg = getThemeColor(theme, Enum.StudioStyleGuideColor.InputFieldBackground)
+	local inputText = getThemeColor(theme, Enum.StudioStyleGuideColor.InputFieldText)
+	local buttonBg = getThemeColor(theme, Enum.StudioStyleGuideColor.Button)
+	local buttonText = getThemeColor(theme, Enum.StudioStyleGuideColor.ButtonText)
+	local accent = getThemeColor(theme, Enum.StudioStyleGuideColor.DialogMainButton)
+	local accentText = getThemeColor(theme, Enum.StudioStyleGuideColor.DialogMainButtonText)
+
+	THEME_TEXT_PRIMARY = textPrimary
+	THEME_TEXT_SECONDARY = textSecondary
+	THEME_AI_BUBBLE = inputBg
+	THEME_USER_BUBBLE = buttonBg
+	THEME_USER_BUBBLE_ACTIVE = accent
+
+	root.BackgroundColor3 = mainBg
+	memoryRow.BackgroundColor3 = cardBg
+	buildsList.BackgroundColor3 = cardBg
+	toolsRow.BackgroundColor3 = cardBg
+	toolsPreview.BackgroundColor3 = inputBg
+	promptBox.BackgroundColor3 = inputBg
+	buttonRow.BackgroundColor3 = cardBg
+	outputFrame.BackgroundColor3 = cardBg
+	planToolsButton.BackgroundColor3 = buttonBg
+	planToolsButton.TextColor3 = buttonText
+	executeToolsButton.BackgroundColor3 = inputBg
+	executeToolsButton.TextColor3 = textSecondary
+	generateButton.BackgroundColor3 = accent
+	generateButton.TextColor3 = accentText
+	refineButton.BackgroundColor3 = getThemeColor(theme, Enum.StudioStyleGuideColor.DialogButton)
+	refineButton.TextColor3 = getThemeColor(theme, Enum.StudioStyleGuideColor.DialogButtonText)
+	refreshBuildsButton.BackgroundColor3 = accent
+	refreshBuildsButton.TextColor3 = accentText
+	clearTemplateButton.BackgroundColor3 = buttonBg
+	clearTemplateButton.TextColor3 = buttonText
+
+	header.TextColor3 = textPrimary
+	memoryHeader.TextColor3 = textPrimary
+	toolsHeader.TextColor3 = textPrimary
+	templatesHeader.TextColor3 = textPrimary
+	outputHeader.TextColor3 = textPrimary
+	buildsStatusLabel.TextColor3 = textSecondary
+	toolsStatusLabel.TextColor3 = textSecondary
+	statusLabel.TextColor3 = textSecondary
+	promptBox.TextColor3 = inputText
+	promptBox.PlaceholderColor3 = textSecondary
+	profilePlaceholder.BackgroundColor3 = accent
+
+	for _, child in ipairs(scrolling:GetChildren()) do
+		if child:IsA("TextLabel") then
+			child.TextColor3 = textPrimary
+			if child.BackgroundTransparency < 1 then
+				child.BackgroundColor3 = inputBg
+			end
+		elseif child:IsA("Frame") then
+			child.BackgroundColor3 = buttonBg
+		end
+	end
+
+	for _, child in ipairs(buildsScroll:GetChildren()) do
+		if child:IsA("TextButton") then
+			child.BackgroundColor3 = inputBg
+			child.TextColor3 = textPrimary
+		end
+	end
+
+	for _, button in pairs(templateButtonsByKey) do
+		if selectedTemplateKey == nil then
+			button.BackgroundColor3 = inputBg
+			button.TextColor3 = textPrimary
+		end
+	end
+	updateTemplateButtonStyles()
+end
+
+pcall(function()
+	settings().Studio.ThemeChanged:Connect(function()
+		applyStudioTheme()
+	end)
+end)
+applyStudioTheme()
+
 widget.Enabled = false
 
 toggleButton.Click:Connect(function()
@@ -1100,13 +1260,23 @@ toggleButton.Click:Connect(function()
 end)
 
 local function setBusy(isBusy)
+	local theme = settings().Studio.Theme
+	local disabledBg = getThemeColor(theme, Enum.StudioStyleGuideColor.Button)
+	local disabledText = getThemeColor(theme, Enum.StudioStyleGuideColor.DimmedText)
+	local accent = getThemeColor(theme, Enum.StudioStyleGuideColor.DialogMainButton)
+	local accentText = getThemeColor(theme, Enum.StudioStyleGuideColor.DialogMainButtonText)
+	local secondary = getThemeColor(theme, Enum.StudioStyleGuideColor.DialogButton)
+	local secondaryText = getThemeColor(theme, Enum.StudioStyleGuideColor.DialogButtonText)
+
 	generateButton.Active = not isBusy
 	generateButton.AutoButtonColor = not isBusy
-	generateButton.BackgroundColor3 = isBusy and Color3.fromRGB(148, 163, 184) or Color3.fromRGB(79, 70, 229)
+	generateButton.BackgroundColor3 = isBusy and disabledBg or accent
+	generateButton.TextColor3 = isBusy and disabledText or accentText
 	generateButton.Text = isBusy and "Generating..." or "Generate"
 	refineButton.Active = not isBusy
 	refineButton.AutoButtonColor = not isBusy
-	refineButton.BackgroundColor3 = isBusy and Color3.fromRGB(148, 163, 184) or Color3.fromRGB(34, 197, 94)
+	refineButton.BackgroundColor3 = isBusy and disabledBg or secondary
+	refineButton.TextColor3 = isBusy and disabledText or secondaryText
 	refineButton.Text = isBusy and "Refining..." or "Refine"
 	statusLabel.Text = isBusy and "🧠 AI is generating..." or "🧠 AI is ready"
 end
@@ -1137,11 +1307,11 @@ local currentStepFrame = nil
 
 local function highlightStep(frame)
 	if currentStepFrame and currentStepFrame:IsA("Frame") then
-		currentStepFrame.BackgroundColor3 = Color3.fromRGB(220, 252, 231)
+		currentStepFrame.BackgroundColor3 = THEME_USER_BUBBLE
 	end
 	currentStepFrame = frame
 	if currentStepFrame and currentStepFrame:IsA("Frame") then
-		currentStepFrame.BackgroundColor3 = Color3.fromRGB(187, 247, 208)
+		currentStepFrame.BackgroundColor3 = THEME_USER_BUBBLE_ACTIVE
 	end
 end
 
@@ -1347,9 +1517,10 @@ local function addBuildButton(build)
 		local folder = getOrCreateGeneratedFolder()
 		local loadedCount = 0
 		for _, s in ipairs(scripts) do
-			local name = sanitizeInstanceName(s.name or "Script")
+			local rawName = tostring(s.name or "Script")
 			local source = tostring(s.source or "")
-			local ok = upsertScript(folder, name, source)
+			local targetParent, scriptName = resolveScriptTarget(rawName, folder)
+			local ok = upsertScript(targetParent, scriptName, source)
 			if ok then
 				loadedCount += 1
 			end
@@ -1739,6 +1910,15 @@ local function runGenerate(isRefine)
 			startProgressAnimation("Parsing")
 
 			local decoded = safeJsonDecode(finalText)
+			if not decoded then
+				local extracted = extractJsonObjectText(finalText)
+				if extracted then
+					decoded = safeJsonDecode(extracted)
+				end
+			end
+			if not decoded then
+				decoded = parseStepsFromTextFallback(finalText)
+			end
 			if not decoded then
 				stopProgressAnimation("Failed")
 				showError("Failed to decode final streamed JSON")

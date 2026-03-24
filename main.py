@@ -1,7 +1,2 @@
-from fastapi import FastAPI
+from backend.main import app
 
-from routes.generate import router as generate_router
-
-app = FastAPI(title="Streaming Generator API")
-
-app.include_router(generate_router)

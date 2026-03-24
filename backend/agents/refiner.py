@@ -25,6 +25,7 @@ async def refiner_agent(prompt: str, previous_code: str) -> dict:
             {"role": "user", "content": _build_user_message(prompt, previous_code)},
         ],
         temperature=0.2,
+        response_format={"type": "json_object"},
     )
 
     content = resp.choices[0].message.content or "{}"
@@ -47,6 +48,7 @@ async def refiner_agent_stream(prompt: str, previous_code: str) -> AsyncIterator
             ],
             stream=True,
             temperature=0.2,
+            response_format={"type": "json_object"},
         )
 
         async for event in stream:
