@@ -157,9 +157,11 @@ async def stream_to_session_live(session_id: str, prompt: str) -> None:
 
             if not steps:
                 await _append_text(session_id, "[Step 1] Planning...\n")
-                await _append_text(session_id, "-- No steps generated\n")
-                await _set_done(session_id, True)
-                return
+                await _append_text(session_id, "-- Planner returned no steps, using fallback step.\n")
+                steps = [{
+                    "title": "ServerScriptService/AI/MainGame",
+                    "description": prompt,
+                }]
 
             token_count = 0
             for idx, step in enumerate(steps, start=1):
