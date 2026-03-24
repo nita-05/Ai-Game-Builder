@@ -66,9 +66,19 @@ local EXPLORER_PATH_PROMPT_SUFFIX = table.concat({
 	"\n- Return steps where every step title is a Roblox Explorer path.",
 	"\n- Path format: Service/Folder/SubFolder/ScriptName",
 	"\n- Valid service examples: Workspace, ReplicatedStorage, ServerScriptService, ServerStorage, StarterPlayer, StarterGui, StarterPack, Lighting, Teams, SoundService.",
+	"\n- Place gameplay/client logic scripts under StarterPlayer/StarterPlayerScripts when possible.",
+	"\n- Do NOT output plugin API code (plugin:, CreateToolbar, CreateDockWidgetPluginGui, DockWidgetPluginGuiInfo).",
 	"\n- Do not use generic titles like 'Step 1' or 'Movement System'. Use only full paths in titles.",
 	"\n- Keep each step code Lua/Luau and scoped to its target script path.",
 }, "")
+
+local function containsPluginOnlyApi(source)
+	local text = tostring(source or "")
+	return string.find(text, "plugin:", 1, true) ~= nil
+		or string.find(text, "CreateToolbar", 1, true) ~= nil
+		or string.find(text, "CreateDockWidgetPluginGui", 1, true) ~= nil
+		or string.find(text, "DockWidgetPluginGuiInfo", 1, true) ~= nil
+end
 
 local function buildPromptWithTemplate(userText)
 	local cleanedUser = tostring(userText or "")
@@ -458,6 +468,9 @@ local function executeToolCall(callObj)
 end
 
 local function upsertScript(parentFolder, scriptName, source)
+	if containsPluginOnlyApi(source) then
+		return false, "Rejected plugin-only API code for runtime script: " .. tostring(scriptName)
+	end
 	local existing = parentFolder:FindFirstChild(scriptName)
 	local scriptObj
 	local hadOriginal = false
@@ -501,6 +514,9 @@ local function upsertScript(parentFolder, scriptName, source)
 end
 
 local function insertScriptNoOverwrite(parentFolder, baseName, source)
+	if containsPluginOnlyApi(source) then
+		return false, "Rejected plugin-only API code for runtime script: " .. tostring(baseName), tostring(baseName)
+	end
 	local name = tostring(baseName or "Script")
 	if name == "" then
 		name = "Script"
@@ -2198,7 +2214,8 @@ local function tryAutoFixFromMessage(message)
 		debugRetryCountByName[scriptName] = retryCount + 1
 		if string.find(msg, "attempt to index nil with 'WaitForChild'", 1, true)
 			or string.find(msg, "attempt to index nil with 'Character'", 1, true)
-			or string.find(msg, "ResourceSpawnLocations is not a valid member of Workspace", 1, true) then
+			or string.find(msg, "ResourceSpawnLocations is not a valid member of Workspace", 1, true)
+			or string.find(msg, "attempt to index nil with 'CreateToolbar'", 1, true) then
 			local deterministic = tostring(original or "")
 			deterministic = string.gsub(deterministic, ":FindFirstChild%(", ":WaitForChild(")
 			deterministic = string.gsub(
@@ -2216,6 +2233,10 @@ local function tryAutoFixFromMessage(message)
 				"workspace%.ResourceSpawnLocations",
 				"(workspace:FindFirstChild(\"ResourceSpawnLocations\") or workspace)"
 			)
+			if string.find(msg, "attempt to index nil with 'CreateToolbar'", 1, true) then
+				deterministic = "-- Removed invalid plugin API usage from runtime script.\n"
+					.. "warn(\"AI removed plugin API code from runtime script; regenerate this step as gameplay/client script\")\n"
+			end
 
 			if string.find(deterministic, "LocalPlayer", 1, true)
 				and scriptObj:IsA("Script")

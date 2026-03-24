@@ -19,7 +19,9 @@ STREAMING_SYSTEM_PROMPT = (
     "Code must be executable inside Roblox Studio. "
     "Prefer modular code and avoid global side-effects when possible. "
     "When creating first-pass gameplay, produce substantial, playable baseline code "
-    "(not placeholder stubs), including safety guards and basic runtime resilience."
+    "(not placeholder stubs), including safety guards and basic runtime resilience. "
+    "Never generate Roblox Studio plugin APIs in runtime game scripts "
+    "(forbidden: plugin:, CreateToolbar, CreateDockWidgetPluginGui, DockWidgetPluginGuiInfo)."
 )
 
 
@@ -81,6 +83,7 @@ def _build_streaming_user_message(step_title: str, step_request: str, previous_c
         return (
             "Refine the existing Roblox Lua script for this step. "
             "Make only necessary changes and return ONLY the updated Lua code.\n\n"
+            "Do NOT use plugin APIs. If this is client/gameplay logic, prefer LocalScript-safe code.\n\n"
             f"STEP_TITLE:\n{step_title}\n\n"
             f"STEP_REQUEST:\n{step_request}\n\n"
             f"PREVIOUS_CODE:\n{previous_code}\n"
@@ -88,6 +91,7 @@ def _build_streaming_user_message(step_title: str, step_request: str, previous_c
 
     return (
         "Write a Roblox Lua script for this step and return ONLY the Lua code.\n\n"
+        "Do NOT use plugin APIs. If this is player client logic, write LocalScript-compatible code.\n\n"
         f"STEP_TITLE:\n{step_title}\n\n"
         f"STEP_REQUEST:\n{step_request}\n"
     )
