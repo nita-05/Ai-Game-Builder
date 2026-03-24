@@ -1,6 +1,7 @@
 local HttpService = game:GetService("HttpService")
 local LogService = game:GetService("LogService")
 local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 
 local TOOLBAR_NAME = "AI Game Builder"
 local BUTTON_NAME = "Game Builder"
@@ -34,27 +35,27 @@ end
 local TEMPLATES = {
 	{
 		key = "obby",
-		label = "Obby",
+		label = "🧱 Obby",
 		prompt = "Create an Obby game with increasing difficulty and checkpoints",
 	},
 	{
 		key = "flappy_tap",
-		label = "Flappy-Tap",
+		label = "🐤 Flappy",
 		prompt = "Create a Flappy-Tap style game: tap to jump, pipes/obstacles scrolling, score counter, and restart on fail",
 	},
 	{
 		key = "survival",
-		label = "Survival",
+		label = "🧟 Survival",
 		prompt = "Create a survival game: resources, simple crafting loop, day/night cycle, and basic enemy waves",
 	},
 	{
 		key = "simulator",
-		label = "Simulator",
+		label = "🎮 Simulator",
 		prompt = "Create a simulator game: collect currency, upgrade stats, simple UI, and rebirth mechanic",
 	},
 	{
 		key = "tycoon",
-		label = "Tycoon",
+		label = "💰 Tycoon",
 		prompt = "Create a tycoon game: droppers generating cash, buy buttons, progressive unlocks, and saving player progress",
 	},
 }
@@ -110,27 +111,39 @@ end
 
 local function createLabel(parent, text, isTitle)
 	local label = Instance.new("TextLabel")	
-	label.BackgroundTransparency = 1
+	label.BackgroundTransparency = isTitle and 1 or 0
 	label.BorderSizePixel = 0
 	label.TextXAlignment = Enum.TextXAlignment.Left
 	label.TextYAlignment = Enum.TextYAlignment.Top
 	label.TextWrapped = true
 	label.RichText = false
-	label.Font = isTitle and Enum.Font.GothamBold or Enum.Font.Code
-	label.TextSize = isTitle and 16 or 14
-	label.TextColor3 = Color3.fromRGB(235, 235, 235)
+	label.Font = isTitle and Enum.Font.GothamBold or Enum.Font.Gotham
+	label.TextSize = isTitle and 16 or 13
+	label.TextColor3 = isTitle and Color3.fromRGB(30, 41, 59) or Color3.fromRGB(30, 41, 59)
 	label.AutomaticSize = Enum.AutomaticSize.Y
-	label.Size = UDim2.new(1, -12, 0, 0)
+	label.Size = UDim2.new(1, -10, 0, 0)
 	label.Text = text
 	label.Parent = parent
+	if not isTitle then
+		label.BackgroundColor3 = Color3.fromRGB(238, 242, 255)
+		local pad = Instance.new("UIPadding")
+		pad.PaddingLeft = UDim.new(0, 10)
+		pad.PaddingRight = UDim.new(0, 10)
+		pad.PaddingTop = UDim.new(0, 8)
+		pad.PaddingBottom = UDim.new(0, 8)
+		pad.Parent = label
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0, 10)
+		corner.Parent = label
+	end
 	return label
 end
 
 local function createStepTitle(parent, text)
 	local frame = Instance.new("Frame")
-	frame.BackgroundColor3 = Color3.fromRGB(34, 34, 40)
+	frame.BackgroundColor3 = Color3.fromRGB(220, 252, 231)
 	frame.BorderSizePixel = 0
-	frame.Size = UDim2.new(1, -12, 0, 30)
+	frame.Size = UDim2.new(1, -12, 0, 28)
 	frame.AutomaticSize = Enum.AutomaticSize.Y
 	frame.Parent = parent
 
@@ -149,8 +162,8 @@ local function createStepTitle(parent, text)
 	label.TextWrapped = true
 	label.RichText = false
 	label.Font = Enum.Font.GothamBold
-	label.TextSize = 14
-	label.TextColor3 = Color3.fromRGB(245, 245, 245)
+	label.TextSize = 13
+	label.TextColor3 = Color3.fromRGB(22, 101, 52)
 	label.AutomaticSize = Enum.AutomaticSize.Y
 	label.Size = UDim2.new(1, 0, 0, 0)
 	label.Text = text
@@ -161,6 +174,38 @@ local function createStepTitle(parent, text)
 	corner.Parent = frame
 
 	return frame
+end
+
+local function addCardStyle(frame)
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 16)
+	corner.Parent = frame
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Thickness = 1
+	stroke.Color = Color3.fromRGB(226, 232, 240)
+	stroke.Transparency = 0
+	stroke.Parent = frame
+end
+
+local function addButtonEffects(button, normalColor, hoverColor, pressedColor)
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 12)
+	corner.Parent = button
+	button.BackgroundColor3 = normalColor
+
+	button.MouseEnter:Connect(function()
+		TweenService:Create(button, TweenInfo.new(0.12), { BackgroundColor3 = hoverColor }):Play()
+	end)
+	button.MouseLeave:Connect(function()
+		TweenService:Create(button, TweenInfo.new(0.12), { BackgroundColor3 = normalColor }):Play()
+	end)
+	button.MouseButton1Down:Connect(function()
+		TweenService:Create(button, TweenInfo.new(0.08), { BackgroundColor3 = pressedColor }):Play()
+	end)
+	button.MouseButton1Up:Connect(function()
+		TweenService:Create(button, TweenInfo.new(0.08), { BackgroundColor3 = hoverColor }):Play()
+	end)
 end
 
 local function clearChildrenExceptLayout(parent)
@@ -598,23 +643,23 @@ rootScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 rootScroll.Parent = widget
 
 local root = Instance.new("Frame")
-root.BackgroundColor3 = Color3.fromRGB(24, 24, 28)
+root.BackgroundColor3 = Color3.fromRGB(248, 250, 252)
 root.BorderSizePixel = 0
 root.Size = UDim2.new(1, 0, 0, 0)
 root.AutomaticSize = Enum.AutomaticSize.Y
 root.Parent = rootScroll
 
 local padding = Instance.new("UIPadding")
-padding.PaddingLeft = UDim.new(0, 10)
-padding.PaddingRight = UDim.new(0, 10)
-padding.PaddingTop = UDim.new(0, 10)
-padding.PaddingBottom = UDim.new(0, 10)
+padding.PaddingLeft = UDim.new(0, 16)
+padding.PaddingRight = UDim.new(0, 16)
+padding.PaddingTop = UDim.new(0, 16)
+padding.PaddingBottom = UDim.new(0, 16)
 padding.Parent = root
 
 local layout = Instance.new("UIListLayout")
 layout.FillDirection = Enum.FillDirection.Vertical
 layout.SortOrder = Enum.SortOrder.LayoutOrder
-layout.Padding = UDim.new(0, 10)
+layout.Padding = UDim.new(0, 12)
 layout.Parent = root
 
 layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
@@ -626,13 +671,23 @@ end)
 local header = Instance.new("TextLabel")
 header.LayoutOrder = 1
 header.BackgroundTransparency = 1
-header.Size = UDim2.new(1, 0, 0, 24)
+header.Size = UDim2.new(1, 0, 0, 30)
 header.TextXAlignment = Enum.TextXAlignment.Left
 header.Font = Enum.Font.GothamBold
-header.TextSize = 18
-header.TextColor3 = Color3.fromRGB(245, 245, 245)
-header.Text = "AI Game Builder"
+header.TextSize = 22
+header.TextColor3 = Color3.fromRGB(15, 23, 42)
+header.Text = "AI Game Builder ✨"
 header.Parent = root
+
+local profilePlaceholder = Instance.new("Frame")
+profilePlaceholder.BackgroundColor3 = Color3.fromRGB(99, 102, 241)
+profilePlaceholder.BorderSizePixel = 0
+profilePlaceholder.Size = UDim2.new(0, 28, 0, 28)
+profilePlaceholder.Position = UDim2.new(1, -30, 0, 2)
+profilePlaceholder.Parent = header
+local profileCorner = Instance.new("UICorner")
+profileCorner.CornerRadius = UDim.new(1, 0)
+profileCorner.Parent = profilePlaceholder
 
 local memoryHeader = Instance.new("TextLabel")
 memoryHeader.LayoutOrder = 1.5
@@ -640,16 +695,16 @@ memoryHeader.BackgroundTransparency = 1
 memoryHeader.Size = UDim2.new(1, 0, 0, 20)
 memoryHeader.TextXAlignment = Enum.TextXAlignment.Left
 memoryHeader.Font = Enum.Font.GothamBold
-memoryHeader.TextSize = 14
-memoryHeader.TextColor3 = Color3.fromRGB(220, 220, 220)
+memoryHeader.TextSize = 16
+memoryHeader.TextColor3 = Color3.fromRGB(30, 41, 59)
 memoryHeader.Text = "Build Memory"
 memoryHeader.Parent = root
 
 local memoryRow = Instance.new("Frame")
 memoryRow.LayoutOrder = 1.6
-memoryRow.BackgroundTransparency = 1
+memoryRow.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 memoryRow.BorderSizePixel = 0
-memoryRow.Size = UDim2.new(1, 0, 0, 32)
+memoryRow.Size = UDim2.new(1, 0, 0, 40)
 memoryRow.Parent = root
 
 local memoryRowLayout = Instance.new("UIListLayout")
@@ -660,12 +715,12 @@ memoryRowLayout.Parent = memoryRow
 
 local refreshBuildsButton = Instance.new("TextButton")
 refreshBuildsButton.LayoutOrder = 1
-refreshBuildsButton.BackgroundColor3 = Color3.fromRGB(55, 55, 65)
+refreshBuildsButton.BackgroundColor3 = Color3.fromRGB(99, 102, 241)
 refreshBuildsButton.BorderSizePixel = 0
 refreshBuildsButton.Size = UDim2.new(0, 120, 1, 0)
 refreshBuildsButton.Font = Enum.Font.GothamBold
 refreshBuildsButton.TextSize = 12
-refreshBuildsButton.TextColor3 = Color3.fromRGB(235, 235, 235)
+refreshBuildsButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 refreshBuildsButton.Text = "Refresh Builds"
 refreshBuildsButton.Parent = memoryRow
 do
@@ -682,15 +737,15 @@ buildsStatusLabel.Size = UDim2.new(1, -128, 1, 0)
 buildsStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
 buildsStatusLabel.Font = Enum.Font.Gotham
 buildsStatusLabel.TextSize = 12
-buildsStatusLabel.TextColor3 = Color3.fromRGB(160, 160, 160)
+buildsStatusLabel.TextColor3 = Color3.fromRGB(100, 116, 139)
 buildsStatusLabel.Text = ""
 buildsStatusLabel.Parent = memoryRow
 
 local buildsList = Instance.new("Frame")
 buildsList.LayoutOrder = 1.7
-buildsList.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+buildsList.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 buildsList.BorderSizePixel = 0
-buildsList.Size = UDim2.new(1, 0, 0, 90)
+buildsList.Size = UDim2.new(1, 0, 0, 102)
 buildsList.Parent = root
 do
 	local corner = Instance.new("UICorner")
@@ -729,16 +784,16 @@ toolsHeader.BackgroundTransparency = 1
 toolsHeader.Size = UDim2.new(1, 0, 0, 20)
 toolsHeader.TextXAlignment = Enum.TextXAlignment.Left
 toolsHeader.Font = Enum.Font.GothamBold
-toolsHeader.TextSize = 14
-toolsHeader.TextColor3 = Color3.fromRGB(220, 220, 220)
-toolsHeader.Text = "Tools (MVP)"
+toolsHeader.TextSize = 16
+toolsHeader.TextColor3 = Color3.fromRGB(30, 41, 59)
+toolsHeader.Text = "Tools"
 toolsHeader.Parent = root
 
 local toolsRow = Instance.new("Frame")
 toolsRow.LayoutOrder = 1.9
-toolsRow.BackgroundTransparency = 1
+toolsRow.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 toolsRow.BorderSizePixel = 0
-toolsRow.Size = UDim2.new(1, 0, 0, 32)
+toolsRow.Size = UDim2.new(1, 0, 0, 40)
 toolsRow.Parent = root
 
 local toolsRowLayout = Instance.new("UIListLayout")
@@ -749,13 +804,13 @@ toolsRowLayout.Parent = toolsRow
 
 local planToolsButton = Instance.new("TextButton")
 planToolsButton.LayoutOrder = 1
-planToolsButton.BackgroundColor3 = Color3.fromRGB(72, 118, 255)
+planToolsButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 planToolsButton.BorderSizePixel = 0
 planToolsButton.Size = UDim2.new(0, 120, 1, 0)
 planToolsButton.Font = Enum.Font.GothamBold
 planToolsButton.TextSize = 12
-planToolsButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-planToolsButton.Text = "Plan Tools"
+planToolsButton.TextColor3 = Color3.fromRGB(30, 41, 59)
+planToolsButton.Text = "Plan"
 planToolsButton.Parent = toolsRow
 do
 	local corner = Instance.new("UICorner")
@@ -765,12 +820,12 @@ end
 
 local executeToolsButton = Instance.new("TextButton")
 executeToolsButton.LayoutOrder = 2
-executeToolsButton.BackgroundColor3 = Color3.fromRGB(60, 180, 120)
+executeToolsButton.BackgroundColor3 = Color3.fromRGB(241, 245, 249)
 executeToolsButton.BorderSizePixel = 0
 executeToolsButton.Size = UDim2.new(0, 120, 1, 0)
 executeToolsButton.Font = Enum.Font.GothamBold
 executeToolsButton.TextSize = 12
-executeToolsButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+executeToolsButton.TextColor3 = Color3.fromRGB(100, 116, 139)
 executeToolsButton.Text = "Execute"
 executeToolsButton.Parent = toolsRow
 do
@@ -787,13 +842,13 @@ toolsStatusLabel.Size = UDim2.new(1, -256, 1, 0)
 toolsStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
 toolsStatusLabel.Font = Enum.Font.Gotham
 toolsStatusLabel.TextSize = 12
-toolsStatusLabel.TextColor3 = Color3.fromRGB(160, 160, 160)
+toolsStatusLabel.TextColor3 = Color3.fromRGB(100, 116, 139)
 toolsStatusLabel.Text = ""
 toolsStatusLabel.Parent = toolsRow
 
 local toolsPreview = Instance.new("TextBox")
 toolsPreview.LayoutOrder = 2.0
-toolsPreview.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+toolsPreview.BackgroundColor3 = Color3.fromRGB(249, 250, 251)
 toolsPreview.BorderSizePixel = 0
 toolsPreview.Size = UDim2.new(1, 0, 0, 70)
 toolsPreview.TextXAlignment = Enum.TextXAlignment.Left
@@ -803,7 +858,7 @@ toolsPreview.MultiLine = true
 toolsPreview.TextEditable = false
 toolsPreview.Font = Enum.Font.Code
 toolsPreview.TextSize = 12
-toolsPreview.TextColor3 = Color3.fromRGB(220, 220, 220)
+toolsPreview.TextColor3 = Color3.fromRGB(30, 41, 59)
 toolsPreview.Text = ""
 toolsPreview.Parent = root
 do
@@ -818,8 +873,8 @@ templatesHeader.BackgroundTransparency = 1
 templatesHeader.Size = UDim2.new(1, 0, 0, 20)
 templatesHeader.TextXAlignment = Enum.TextXAlignment.Left
 templatesHeader.Font = Enum.Font.GothamBold
-templatesHeader.TextSize = 14
-templatesHeader.TextColor3 = Color3.fromRGB(220, 220, 220)
+templatesHeader.TextSize = 16
+templatesHeader.TextColor3 = Color3.fromRGB(30, 41, 59)
 templatesHeader.Text = "Templates"
 templatesHeader.Parent = root
 
@@ -837,16 +892,17 @@ templatesLayout.Padding = UDim.new(0, 6)
 templatesLayout.Parent = templatesRow
 
 local function makeTemplateButton(text)
-	local b = Instance.new("TextButton")	b.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
+	local b = Instance.new("TextButton")
+	b.BackgroundColor3 = Color3.fromRGB(241, 245, 249)
 	b.BorderSizePixel = 0
 	b.Size = UDim2.new(0, 86, 1, 0)
 	b.Font = Enum.Font.GothamBold
 	b.TextSize = 12
-	b.TextColor3 = Color3.fromRGB(235, 235, 235)
+	b.TextColor3 = Color3.fromRGB(51, 65, 85)
 	b.Text = text
 	b.AutoButtonColor = true
 	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 8)
+	corner.CornerRadius = UDim.new(1, 0)
 	corner.Parent = b
 	return b
 end
@@ -858,11 +914,11 @@ local promptBox
 local function updateTemplateButtonStyles()
 	for key, btn in pairs(templateButtonsByKey) do
 		if key == selectedTemplateKey then
-			btn.BackgroundColor3 = Color3.fromRGB(72, 118, 255)
+			btn.BackgroundColor3 = Color3.fromRGB(79, 70, 229)
 			btn.TextColor3 = Color3.fromRGB(255, 255, 255)
 		else
-			btn.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
-			btn.TextColor3 = Color3.fromRGB(235, 235, 235)
+			btn.BackgroundColor3 = Color3.fromRGB(241, 245, 249)
+			btn.TextColor3 = Color3.fromRGB(51, 65, 85)
 		end
 	end
 end
@@ -882,7 +938,7 @@ end
 
 local clearTemplateButton = makeTemplateButton("Clear")
 clearTemplateButton.Size = UDim2.new(0, 60, 1, 0)
-clearTemplateButton.BackgroundColor3 = Color3.fromRGB(55, 55, 65)
+clearTemplateButton.BackgroundColor3 = Color3.fromRGB(226, 232, 240)
 clearTemplateButton.Parent = templatesRow
 clearTemplateButton.MouseButton1Click:Connect(function()
 	selectedTemplateKey = nil
@@ -896,7 +952,7 @@ updateTemplateButtonStyles()
 
 promptBox = Instance.new("TextBox")
 promptBox.LayoutOrder = 4
-promptBox.BackgroundColor3 = Color3.fromRGB(32, 32, 38)
+promptBox.BackgroundColor3 = Color3.fromRGB(249, 250, 251)
 promptBox.BorderSizePixel = 0
 promptBox.Size = UDim2.new(1, 0, 0, 120)
 promptBox.TextXAlignment = Enum.TextXAlignment.Left
@@ -905,15 +961,15 @@ promptBox.ClearTextOnFocus = false
 promptBox.MultiLine = true
 promptBox.Font = Enum.Font.Gotham
 promptBox.TextSize = 14
-promptBox.TextColor3 = Color3.fromRGB(235, 235, 235)
-promptBox.PlaceholderText = "Describe the game feature to build (e.g., obby with checkpoints, spawn, UI, etc.)"
-promptBox.PlaceholderColor3 = Color3.fromRGB(140, 140, 140)
+promptBox.TextColor3 = Color3.fromRGB(15, 23, 42)
+promptBox.PlaceholderText = "Describe your game idea..."
+promptBox.PlaceholderColor3 = Color3.fromRGB(148, 163, 184)
 promptBox.Text = ""
 promptBox.Parent = root
 
 local buttonRow = Instance.new("Frame")
 buttonRow.LayoutOrder = 5
-buttonRow.BackgroundTransparency = 1
+buttonRow.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 buttonRow.BorderSizePixel = 0
 buttonRow.Size = UDim2.new(1, 0, 0, 36)
 buttonRow.Parent = root
@@ -926,7 +982,7 @@ buttonLayout.Parent = buttonRow
 
 local generateButton = Instance.new("TextButton")
 generateButton.LayoutOrder = 1
-generateButton.BackgroundColor3 = Color3.fromRGB(72, 118, 255)
+generateButton.BackgroundColor3 = Color3.fromRGB(79, 70, 229)
 generateButton.BorderSizePixel = 0
 generateButton.Size = UDim2.new(0, 140, 1, 0)
 generateButton.Font = Enum.Font.GothamBold
@@ -937,7 +993,7 @@ generateButton.Parent = buttonRow
 
 local refineButton = Instance.new("TextButton")
 refineButton.LayoutOrder = 2
-refineButton.BackgroundColor3 = Color3.fromRGB(60, 180, 120)
+refineButton.BackgroundColor3 = Color3.fromRGB(34, 197, 94)
 refineButton.BorderSizePixel = 0
 refineButton.Size = UDim2.new(0, 120, 1, 0)
 refineButton.Font = Enum.Font.GothamBold
@@ -954,8 +1010,8 @@ statusLabel.Size = UDim2.new(1, -276, 1, 0)
 statusLabel.TextXAlignment = Enum.TextXAlignment.Left
 statusLabel.Font = Enum.Font.Gotham
 statusLabel.TextSize = 12
-statusLabel.TextColor3 = Color3.fromRGB(160, 160, 160)
-statusLabel.Text = ""
+statusLabel.TextColor3 = Color3.fromRGB(100, 116, 139)
+statusLabel.Text = "🧠 AI is ready"
 statusLabel.Parent = buttonRow
 
 local outputHeader = Instance.new("TextLabel")
@@ -964,16 +1020,16 @@ outputHeader.BackgroundTransparency = 1
 outputHeader.Size = UDim2.new(1, 0, 0, 20)
 outputHeader.TextXAlignment = Enum.TextXAlignment.Left
 outputHeader.Font = Enum.Font.GothamBold
-outputHeader.TextSize = 14
-outputHeader.TextColor3 = Color3.fromRGB(220, 220, 220)
-outputHeader.Text = "Output (Steps)"
+outputHeader.TextSize = 16
+outputHeader.TextColor3 = Color3.fromRGB(30, 41, 59)
+outputHeader.Text = "Output (Chat)"
 outputHeader.Parent = root
 
 local outputFrame = Instance.new("Frame")
 outputFrame.LayoutOrder = 5
-outputFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+outputFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 outputFrame.BorderSizePixel = 0
-outputFrame.Size = UDim2.new(1, 0, 1, -24 - 120 - 36 - 20 - 40)
+outputFrame.Size = UDim2.new(1, 0, 0, 260)
 outputFrame.Parent = root
 
 local outputPadding = Instance.new("UIPadding")
@@ -1005,6 +1061,38 @@ scrollingLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function
 	setCanvasToBottom(scrolling)
 end)
 
+addCardStyle(memoryRow)
+addCardStyle(buildsList)
+addCardStyle(toolsRow)
+addCardStyle(toolsPreview)
+addCardStyle(promptBox)
+addCardStyle(buttonRow)
+addCardStyle(outputFrame)
+
+local promptStroke = promptBox:FindFirstChildOfClass("UIStroke")
+if promptStroke then
+	promptBox.Focused:Connect(function()
+		promptStroke.Color = Color3.fromRGB(99, 102, 241)
+	end)
+	promptBox.FocusLost:Connect(function()
+		promptStroke.Color = Color3.fromRGB(226, 232, 240)
+	end)
+end
+
+addButtonEffects(refreshBuildsButton, Color3.fromRGB(99, 102, 241), Color3.fromRGB(79, 70, 229), Color3.fromRGB(67, 56, 202))
+addButtonEffects(planToolsButton, Color3.fromRGB(255, 255, 255), Color3.fromRGB(248, 250, 252), Color3.fromRGB(241, 245, 249))
+addButtonEffects(executeToolsButton, Color3.fromRGB(241, 245, 249), Color3.fromRGB(226, 232, 240), Color3.fromRGB(203, 213, 225))
+addButtonEffects(generateButton, Color3.fromRGB(79, 70, 229), Color3.fromRGB(67, 56, 202), Color3.fromRGB(55, 48, 163))
+addButtonEffects(refineButton, Color3.fromRGB(34, 197, 94), Color3.fromRGB(22, 163, 74), Color3.fromRGB(21, 128, 61))
+
+local generateGradient = Instance.new("UIGradient")
+generateGradient.Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(99, 102, 241)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(79, 70, 229)),
+})
+generateGradient.Rotation = 15
+generateGradient.Parent = generateButton
+
 widget.Enabled = false
 
 toggleButton.Click:Connect(function()
@@ -1014,13 +1102,13 @@ end)
 local function setBusy(isBusy)
 	generateButton.Active = not isBusy
 	generateButton.AutoButtonColor = not isBusy
-	generateButton.BackgroundColor3 = isBusy and Color3.fromRGB(80, 80, 90) or Color3.fromRGB(72, 118, 255)
+	generateButton.BackgroundColor3 = isBusy and Color3.fromRGB(148, 163, 184) or Color3.fromRGB(79, 70, 229)
 	generateButton.Text = isBusy and "Generating..." or "Generate"
 	refineButton.Active = not isBusy
 	refineButton.AutoButtonColor = not isBusy
-	refineButton.BackgroundColor3 = isBusy and Color3.fromRGB(80, 80, 90) or Color3.fromRGB(60, 180, 120)
+	refineButton.BackgroundColor3 = isBusy and Color3.fromRGB(148, 163, 184) or Color3.fromRGB(34, 197, 94)
 	refineButton.Text = isBusy and "Refining..." or "Refine"
-	statusLabel.Text = isBusy and "Starting..." or ""
+	statusLabel.Text = isBusy and "🧠 AI is generating..." or "🧠 AI is ready"
 end
 
 local progressAnimToken = 0
@@ -1049,11 +1137,11 @@ local currentStepFrame = nil
 
 local function highlightStep(frame)
 	if currentStepFrame and currentStepFrame:IsA("Frame") then
-		currentStepFrame.BackgroundColor3 = Color3.fromRGB(34, 34, 40)
+		currentStepFrame.BackgroundColor3 = Color3.fromRGB(220, 252, 231)
 	end
 	currentStepFrame = frame
 	if currentStepFrame and currentStepFrame:IsA("Frame") then
-		currentStepFrame.BackgroundColor3 = Color3.fromRGB(55, 55, 70)
+		currentStepFrame.BackgroundColor3 = Color3.fromRGB(187, 247, 208)
 	end
 end
 
@@ -1211,18 +1299,19 @@ local function addBuildButton(build)
 	local id = tostring(build.id or "")
 	local promptText = tostring(build.prompt or "")
 	local btn = Instance.new("TextButton")
-	btn.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
+	btn.BackgroundColor3 = Color3.fromRGB(241, 245, 249)
 	btn.BorderSizePixel = 0
 	btn.Size = UDim2.new(1, 0, 0, 28)
 	btn.Font = Enum.Font.Gotham
 	btn.TextSize = 12
-	btn.TextColor3 = Color3.fromRGB(235, 235, 235)
+	btn.TextColor3 = Color3.fromRGB(51, 65, 85)
 	btn.TextXAlignment = Enum.TextXAlignment.Left
 	btn.Text = "Load: " .. string.sub(id, 1, 8) .. "  |  " .. string.sub(promptText, 1, 40)
 	btn.Parent = buildsScroll
 	local corner = Instance.new("UICorner")
 	corner.CornerRadius = UDim.new(0, 8)
 	corner.Parent = btn
+	addButtonEffects(btn, Color3.fromRGB(241, 245, 249), Color3.fromRGB(226, 232, 240), Color3.fromRGB(203, 213, 225))
 
 	btn.MouseButton1Click:Connect(function()
 		buildsStatusLabel.Text = "Loading..."
@@ -1326,7 +1415,8 @@ local function updateExecuteButton()
 	local enabled = plannedToolCalls ~= nil and type(plannedToolCalls.tool_calls) == "table" and #plannedToolCalls.tool_calls > 0
 	executeToolsButton.Active = enabled
 	executeToolsButton.AutoButtonColor = enabled
-	executeToolsButton.BackgroundColor3 = enabled and Color3.fromRGB(60, 180, 120) or Color3.fromRGB(80, 80, 90)
+	executeToolsButton.BackgroundColor3 = enabled and Color3.fromRGB(34, 197, 94) or Color3.fromRGB(241, 245, 249)
+	executeToolsButton.TextColor3 = enabled and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(100, 116, 139)
 end
 
 updateExecuteButton()
