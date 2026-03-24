@@ -561,6 +561,28 @@ local function collectAllProjectScripts()
 	return scripts
 end
 
+local function findScriptObjectByLeafName(leafName)
+	local target = tostring(leafName or "")
+	if target == "" then
+		return nil
+	end
+
+	for _, serviceName in ipairs(SCRIPT_SCAN_ROOT_SERVICES) do
+		local service = tryGetService(serviceName)
+		if service then
+			if isCodeScript(service) and service.Name == target then
+				return service
+			end
+			for _, child in ipairs(service:GetDescendants()) do
+				if isCodeScript(child) and child.Name == target then
+					return child
+				end
+			end
+		end
+	end
+	return nil
+end
+
 local function collectPreviousCode()
 	local scripts = collectAllProjectScripts()
 	if #scripts == 0 then
@@ -2058,6 +2080,13 @@ local function tryAutoFixFromMessage(message)
 	if not scriptName then
 		scriptName = string.match(msg, "AI_SCRIPT_ERROR:([%w_]+):")
 	end
+	local scriptPathFromError = nil
+	if not scriptName then
+		scriptPathFromError = string.match(msg, "Script%s+'([^']+)'")
+		if scriptPathFromError then
+			scriptName = string.match(scriptPathFromError, "([^%.]+)$")
+		end
+	end
 	if not scriptName or scriptName == "" then
 		return
 	end
@@ -2070,13 +2099,15 @@ local function tryAutoFixFromMessage(message)
 	lastFixAttemptAtByName[scriptName] = now
 
 	local scriptObj = scriptObjectByDebugKey[scriptName]
-	if not scriptObj or not scriptObj:IsA("Script") then
+	if (not scriptObj) or (not isCodeScript(scriptObj)) then
 		local folder = workspace:FindFirstChild("AI_Generated")
-		if not folder or not folder:IsA("Folder") then
-			return
+		if folder and folder:IsA("Folder") then
+			scriptObj = folder:FindFirstChild(scriptName)
 		end
-		scriptObj = folder:FindFirstChild(scriptName)
-		if not scriptObj or not scriptObj:IsA("Script") then
+		if (not scriptObj) or (not isCodeScript(scriptObj)) then
+			scriptObj = findScriptObjectByLeafName(scriptName)
+		end
+		if (not scriptObj) or (not isCodeScript(scriptObj)) then
 			return
 		end
 	end

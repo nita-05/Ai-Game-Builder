@@ -17,7 +17,9 @@ STREAMING_SYSTEM_PROMPT = (
     "You generate ONLY Roblox Lua code for a single script step. "
     "Output ONLY Lua code. No explanations. No markdown. No code fences. "
     "Code must be executable inside Roblox Studio. "
-    "Prefer modular code and avoid global side-effects when possible."
+    "Prefer modular code and avoid global side-effects when possible. "
+    "When creating first-pass gameplay, produce substantial, playable baseline code "
+    "(not placeholder stubs), including safety guards and basic runtime resilience."
 )
 
 

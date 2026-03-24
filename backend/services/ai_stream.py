@@ -19,6 +19,72 @@ _tasks_by_session_id: dict[str, asyncio.Task] = {}
 _tasks_lock = asyncio.Lock()
 
 
+def _normalize_step_title(raw_title: str, idx: int) -> str:
+    title = str(raw_title or "").strip()
+    if title == "":
+        title = f"Step {idx}"
+    title = title.replace("\\", "/").replace(">", "/").strip()
+    if "/" not in title and "." not in title:
+        title = f"ServerScriptService/AI/{title}"
+    return title
+
+
+def _is_new_game_request(prompt: str) -> bool:
+    text = str(prompt or "").lower()
+    hints = [
+        "create",
+        "build",
+        "make",
+        "new game",
+        "obby",
+        "simulator",
+        "survival",
+        "tycoon",
+        "flappy",
+        "game",
+    ]
+    return any(h in text for h in hints)
+
+
+def _playable_fallback_steps(prompt: str) -> list[dict[str, str]]:
+    return [
+        {"title": "ServerScriptService/AI/MainGame", "description": f"Core gameplay loop for: {prompt}"},
+        {"title": "ReplicatedStorage/AI/Remotes", "description": "Create remotes/shared data contracts used by gameplay and UI."},
+        {"title": "StarterPlayer/StarterPlayerScripts/ClientMain", "description": "Client gameplay input and feedback behavior."},
+        {"title": "StarterGui/AI/GameUI", "description": "UI for score/progression/status and restart guidance."},
+    ]
+
+
+def _normalize_steps(plan: object, prompt: str) -> list[dict[str, str]]:
+    raw_steps = list(plan.get("steps", [])) if isinstance(plan, dict) else []
+    out: list[dict[str, str]] = []
+    for idx, step in enumerate(raw_steps, start=1):
+        if not isinstance(step, dict):
+            continue
+        title = _normalize_step_title(str(step.get("title", "")), idx)
+        description = str(step.get("description", "")).strip() or prompt
+        out.append({"title": title, "description": description})
+    return out
+
+
+async def _planner_with_retry(prompt: str) -> list[dict[str, str]]:
+    steps = _normalize_steps(await planner_agent(prompt), prompt)
+    if steps:
+        return steps
+
+    retry_prompt = (
+        prompt
+        + "\n\nReturn JSON only: {\"steps\":[{\"title\":\"ServerScriptService/AI/MainGame\",\"description\":\"...\"}]}. "
+        + "At least one step is required."
+    )
+    steps = _normalize_steps(await planner_agent(retry_prompt), prompt)
+    if steps:
+        return steps
+    if _is_new_game_request(prompt):
+        return _playable_fallback_steps(prompt)
+    return [{"title": "ServerScriptService/AI/MainGame", "description": prompt}]
+
+
 async def _append_text(session_id: str, chunk: str) -> None:
     await stream_sessions_store.append_text(session_id=session_id, chunk=chunk)
 
@@ -152,8 +218,7 @@ async def stream_to_session_live(session_id: str, prompt: str) -> None:
 
     try:
         async with asyncio.timeout(OPENAI_STREAM_TIMEOUT_SECONDS):
-            plan = await planner_agent(prompt)
-            steps = list(plan.get("steps", [])) if isinstance(plan, dict) else []
+            steps = await _planner_with_retry(prompt)
 
             if not steps:
                 await _append_text(session_id, "[Step 1] Planning...\n")
