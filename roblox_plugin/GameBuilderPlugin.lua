@@ -602,17 +602,7 @@ end
 
 local function appendStreamingText(parent, prefix, fullText)
 	local label = createLabel(parent, prefix, false)
-	label.Text = prefix
-
-	local chunkSize = 80
-	local i = 1
-	while i <= #fullText do
-		local nextIndex = math.min(i + chunkSize - 1, #fullText)
-		label.Text = prefix .. string.sub(fullText, 1, nextIndex)
-		i = nextIndex + 1
-		task.wait(0.2 + (math.random() * 0.3))
-	end
-
+	label.Text = prefix .. tostring(fullText or "")
 	return label
 end
 
@@ -1002,11 +992,33 @@ refineButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 refineButton.Text = "Refine"
 refineButton.Parent = buttonRow
 
+local stopButton = Instance.new("TextButton")
+stopButton.LayoutOrder = 3
+stopButton.BackgroundColor3 = Color3.fromRGB(251, 146, 60)
+stopButton.BorderSizePixel = 0
+stopButton.Size = UDim2.new(0, 84, 1, 0)
+stopButton.Font = Enum.Font.GothamBold
+stopButton.TextSize = 13
+stopButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+stopButton.Text = "Stop"
+stopButton.Parent = buttonRow
+
+local clearAllButton = Instance.new("TextButton")
+clearAllButton.LayoutOrder = 4
+clearAllButton.BackgroundColor3 = Color3.fromRGB(226, 232, 240)
+clearAllButton.BorderSizePixel = 0
+clearAllButton.Size = UDim2.new(0, 96, 1, 0)
+clearAllButton.Font = Enum.Font.GothamBold
+clearAllButton.TextSize = 13
+clearAllButton.TextColor3 = Color3.fromRGB(51, 65, 85)
+clearAllButton.Text = "Clear All"
+clearAllButton.Parent = buttonRow
+
 local statusLabel = Instance.new("TextLabel")
-statusLabel.LayoutOrder = 2
+statusLabel.LayoutOrder = 5
 statusLabel.BackgroundTransparency = 1
 statusLabel.BorderSizePixel = 0
-statusLabel.Size = UDim2.new(1, -276, 1, 0)
+statusLabel.Size = UDim2.new(1, -468, 1, 0)
 statusLabel.TextXAlignment = Enum.TextXAlignment.Left
 statusLabel.Font = Enum.Font.Gotham
 statusLabel.TextSize = 12
@@ -1084,6 +1096,8 @@ addButtonEffects(planToolsButton, Color3.fromRGB(255, 255, 255), Color3.fromRGB(
 addButtonEffects(executeToolsButton, Color3.fromRGB(241, 245, 249), Color3.fromRGB(226, 232, 240), Color3.fromRGB(203, 213, 225))
 addButtonEffects(generateButton, Color3.fromRGB(79, 70, 229), Color3.fromRGB(67, 56, 202), Color3.fromRGB(55, 48, 163))
 addButtonEffects(refineButton, Color3.fromRGB(34, 197, 94), Color3.fromRGB(22, 163, 74), Color3.fromRGB(21, 128, 61))
+addButtonEffects(stopButton, Color3.fromRGB(251, 146, 60), Color3.fromRGB(249, 115, 22), Color3.fromRGB(234, 88, 12))
+addButtonEffects(clearAllButton, Color3.fromRGB(226, 232, 240), Color3.fromRGB(203, 213, 225), Color3.fromRGB(148, 163, 184))
 
 local generateGradient = Instance.new("UIGradient")
 generateGradient.Color = ColorSequence.new({
@@ -1099,17 +1113,35 @@ toggleButton.Click:Connect(function()
 	widget.Enabled = not widget.Enabled
 end)
 
-local function setBusy(isBusy)
+local activeRunToken = 0
+local isRunActive = false
+
+local function setBusy(isBusy, mode)
+	local runningGenerate = isBusy and mode == "generate"
+	local runningRefine = isBusy and mode == "refine"
+	isRunActive = isBusy
 	generateButton.Active = not isBusy
 	generateButton.AutoButtonColor = not isBusy
 	generateButton.BackgroundColor3 = isBusy and Color3.fromRGB(148, 163, 184) or Color3.fromRGB(79, 70, 229)
-	generateButton.Text = isBusy and "Generating..." or "Generate"
+	generateButton.Text = runningGenerate and "Generating..." or "Generate"
 	refineButton.Active = not isBusy
 	refineButton.AutoButtonColor = not isBusy
 	refineButton.BackgroundColor3 = isBusy and Color3.fromRGB(148, 163, 184) or Color3.fromRGB(34, 197, 94)
-	refineButton.Text = isBusy and "Refining..." or "Refine"
-	statusLabel.Text = isBusy and "🧠 AI is generating..." or "🧠 AI is ready"
+	refineButton.Text = runningRefine and "Refining..." or "Refine"
+	stopButton.Active = isBusy
+	stopButton.AutoButtonColor = isBusy
+	stopButton.BackgroundColor3 = isBusy and Color3.fromRGB(251, 146, 60) or Color3.fromRGB(148, 163, 184)
+	stopButton.TextColor3 = isBusy and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(241, 245, 249)
+	if runningRefine then
+		statusLabel.Text = "🧠 AI is refining..."
+	elseif runningGenerate then
+		statusLabel.Text = "🧠 AI is generating..."
+	else
+		statusLabel.Text = "🧠 AI is ready"
+	end
 end
+
+setBusy(false)
 
 local progressAnimToken = 0
 
@@ -1131,6 +1163,22 @@ end
 local function stopProgressAnimation(finalText)
 	progressAnimToken += 1
 	statusLabel.Text = finalText or ""
+end
+
+local function clearGeneratedArtifacts()
+	local generatedFolder = workspace:FindFirstChild("AI_Generated")
+	if generatedFolder and generatedFolder:IsA("Folder") then
+		for _, child in ipairs(generatedFolder:GetChildren()) do
+			child:Destroy()
+		end
+	end
+
+	local toolsFolder = workspace:FindFirstChild("AI_Tools")
+	if toolsFolder and toolsFolder:IsA("Folder") then
+		for _, child in ipairs(toolsFolder:GetChildren()) do
+			child:Destroy()
+		end
+	end
 end
 
 local currentStepFrame = nil
@@ -1665,6 +1713,12 @@ local function callDebug(errorMessage, code)
 end
 
 local function runGenerate(isRefine)
+	activeRunToken += 1
+	local runToken = activeRunToken
+	local function isCancelled()
+		return runToken ~= activeRunToken
+	end
+
 	local prompt = withExplorerPathRules(buildPromptWithTemplate(promptBox.Text))
 	if string.gsub(prompt, "%s+", "") == "" then
 		clearChildrenExceptLayout(scrolling)
@@ -1673,10 +1727,13 @@ local function runGenerate(isRefine)
 	end
 
 	clearChildrenExceptLayout(scrolling)
-	setBusy(true)
+	setBusy(true, isRefine and "refine" or "generate")
 	startProgressAnimation(isRefine and "Refining" or "Generating")
 
 	task.spawn(function()
+		if isCancelled() then
+			return
+		end
 		if isRefine then
 			local previousCode = collectPreviousCode()
 			if not previousCode then
@@ -1687,6 +1744,9 @@ local function runGenerate(isRefine)
 			end
 
 			local sessionId, startErr = callRefineStart(prompt, previousCode)
+			if isCancelled() then
+				return
+			end
 			if startErr then
 				stopProgressAnimation("Failed")
 				showError(startErr)
@@ -1705,6 +1765,9 @@ local function runGenerate(isRefine)
 			local lastLen = 0
 			local finalText = ""
 			while true do
+				if isCancelled() then
+					return
+				end
 				local snapshot, streamErr = callStream(sessionId)
 				if streamErr then
 					stopProgressAnimation("Failed")
@@ -1798,6 +1861,9 @@ local function runGenerate(isRefine)
 		end
 
 		local sessionId, startErr = callStartLive(prompt)
+		if isCancelled() then
+			return
+		end
 		if startErr then
 			stopProgressAnimation("Failed")
 			showError(startErr)
@@ -1810,6 +1876,10 @@ local function runGenerate(isRefine)
 
 		local generatedFolder = getOrCreateGeneratedFolder()
 		local usedNames = {}
+		local liveFrame = createStepTitle(scrolling, "Live Stream")
+		highlightStep(liveFrame)
+		local liveLabel = createLabel(scrolling, "", false)
+		liveLabel.Text = ""
 
 		local lastLen = 0
 		local buffer = ""
@@ -1887,6 +1957,9 @@ local function runGenerate(isRefine)
 		end
 
 		while true do
+			if isCancelled() then
+				return
+			end
 			local snapshot, streamErr = callStream(sessionId)
 			if streamErr then
 				stopProgressAnimation("Failed")
@@ -1906,6 +1979,7 @@ local function runGenerate(isRefine)
 			if #text > lastLen then
 				local delta = string.sub(text, lastLen + 1)
 				lastLen = #text
+				liveLabel.Text = liveLabel.Text .. delta
 				buffer = buffer .. delta
 				processBuffer()
 				if currentCodeLabel and buffer ~= "" and string.find(buffer, "[Step ", 1, true) == nil then
@@ -1949,6 +2023,33 @@ end)
 
 refineButton.MouseButton1Click:Connect(function()
 	runGenerate(true)
+end)
+
+stopButton.MouseButton1Click:Connect(function()
+	if not isRunActive then
+		return
+	end
+	activeRunToken += 1
+	stopProgressAnimation("Stopped")
+	setBusy(false)
+	createLabel(scrolling, "Stopped", true)
+	appendStreamingText(scrolling, "-- ", "Current generation/refine was cancelled by user.\n")
+end)
+
+clearAllButton.MouseButton1Click:Connect(function()
+	activeRunToken += 1
+	stopProgressAnimation("Cleared")
+	setBusy(false)
+	clearGeneratedArtifacts()
+	clearChildrenExceptLayout(scrolling)
+	promptBox.Text = ""
+	selectedTemplateKey = nil
+	updateTemplateButtonStyles()
+	plannedToolCalls = nil
+	toolsPreview.Text = ""
+	toolsStatusLabel.Text = "Cleared"
+	buildsStatusLabel.Text = "Cleared"
+	statusLabel.Text = "🧠 AI is ready"
 end)
 
 local function tryAutoFixFromMessage(message)
