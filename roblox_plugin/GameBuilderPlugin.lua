@@ -159,6 +159,7 @@ local function clearChildrenExceptLayout(parent)
 end
 
 local scriptOriginalSourceByName = {}
+local scriptObjectByDebugKey = {}
 local lastFixAttemptAtByName = {}
 local debugRetryCountByName = {}
 local MAX_DEBUG_RETRIES = 2
@@ -209,6 +210,91 @@ local function getOrCreateToolsFolder()
 	folder.Name = "AI_Tools"
 	folder.Parent = workspace
 	return folder
+end
+
+local function splitExplorerPath(rawPath)
+	local text = tostring(rawPath or "")
+	text = string.gsub(text, "\\", "/")
+	text = string.gsub(text, ">", "/")
+	text = string.gsub(text, "^%s+", "")
+	text = string.gsub(text, "%s+$", "")
+
+	local parts = {}
+	if string.find(text, "/", 1, true) then
+		for part in string.gmatch(text, "[^/]+") do
+			part = string.gsub(part, "^%s+", "")
+			part = string.gsub(part, "%s+$", "")
+			if part ~= "" then
+				table.insert(parts, part)
+			end
+		end
+	else
+		for part in string.gmatch(text, "[^%.]+") do
+			part = string.gsub(part, "^%s+", "")
+			part = string.gsub(part, "%s+$", "")
+			if part ~= "" then
+				table.insert(parts, part)
+			end
+		end
+	end
+
+	return parts
+end
+
+local function tryGetService(name)
+	local ok, service = pcall(function()
+		return game:GetService(name)
+	end)
+	if ok then
+		return service
+	end
+	return nil
+end
+
+local function resolveScriptTarget(title, defaultParent)
+	local parts = splitExplorerPath(title)
+	if #parts < 2 then
+		return defaultParent, sanitizeInstanceName(title), false, nil
+	end
+
+	local root = tryGetService(parts[1])
+	if not root then
+		return defaultParent, sanitizeInstanceName(title), false, nil
+	end
+
+	local parent = root
+	for i = 2, (#parts - 1) do
+		local segmentName = sanitizeInstanceName(parts[i])
+		local existing = parent:FindFirstChild(segmentName)
+		if existing and not existing:IsA("Folder") then
+			return defaultParent, sanitizeInstanceName(title), false, "Path conflict at " .. parent:GetFullName() .. "." .. segmentName
+		end
+		if not existing then
+			existing = Instance.new("Folder")
+			existing.Name = segmentName
+			existing.Parent = parent
+		end
+		parent = existing
+	end
+
+	local scriptName = sanitizeInstanceName(parts[#parts])
+	if scriptName == "" then
+		scriptName = "Script"
+	end
+
+	return parent, scriptName, true, nil
+end
+
+local function buildScriptKey(parentFolder, scriptName)
+	local raw = tostring(scriptName or "Script")
+	local ok, fullName = pcall(function()
+		return parentFolder:GetFullName()
+	end)
+	if ok and fullName and fullName ~= "" then
+		raw = fullName .. "." .. raw
+	end
+	raw = string.gsub(raw, "[^%w_]", "_")
+	return string.sub(raw, 1, 120)
 end
 
 local function safeVector3(value, default)
@@ -307,14 +393,17 @@ local function upsertScript(parentFolder, scriptName, source)
 		scriptObj.Parent = parentFolder
 	end
 
+	local scriptKey = buildScriptKey(parentFolder, scriptName)
 	scriptOriginalSourceByName[scriptName] = source
-	local wrapped = wrapWithPcall(scriptName, source)
+	scriptOriginalSourceByName[scriptKey] = source
+	scriptObjectByDebugKey[scriptKey] = scriptObj
+	local wrapped = wrapWithPcall(scriptKey, source)
 
 	local ok, err = pcall(function()
 		scriptObj.Source = wrapped
 	end)
 
-	return ok, err
+	return ok, err, scriptKey
 end
 
 local function insertScriptNoOverwrite(parentFolder, baseName, source)
@@ -334,14 +423,17 @@ local function insertScriptNoOverwrite(parentFolder, baseName, source)
 	scriptObj.Name = finalName
 	scriptObj.Parent = parentFolder
 
+	local scriptKey = buildScriptKey(parentFolder, finalName)
 	scriptOriginalSourceByName[finalName] = source
-	local wrapped = wrapWithPcall(finalName, source)
+	scriptOriginalSourceByName[scriptKey] = source
+	scriptObjectByDebugKey[scriptKey] = scriptObj
+	local wrapped = wrapWithPcall(scriptKey, source)
 
 	local ok, err = pcall(function()
 		scriptObj.Source = wrapped
 	end)
 
-	return ok, err, finalName
+	return ok, err, finalName, scriptKey
 end
 
 local function collectPreviousCode()
@@ -1488,12 +1580,19 @@ local function runGenerate(isRefine)
 				startProgressAnimation("" .. title)
 				appendStreamingText(scrolling, "", code .. "\n")
 
-				local scriptName = sanitizeInstanceName(title)
-				local ok, insertErr = upsertScript(generatedFolder, scriptName, code)
+				local targetParent, scriptName, usedExplorerPath, targetErr = resolveScriptTarget(title, generatedFolder)
+				if targetErr then
+					local pathErrFrame = createStepTitle(scrolling, "Path Warning")
+					highlightStep(pathErrFrame)
+					appendStreamingText(scrolling, "-- ", targetErr .. ". Using Workspace.AI_Generated fallback.\n")
+				end
+				local ok, insertErr = upsertScript(targetParent, scriptName, code)
 				if not ok then
 					local errFrame = createStepTitle(scrolling, "Insertion Error")
 					highlightStep(errFrame)
 					appendStreamingText(scrolling, "-- ", tostring(insertErr) .. "\n")
+				elseif usedExplorerPath then
+					appendStreamingText(scrolling, "-- ", "Updated " .. targetParent:GetFullName() .. "." .. scriptName .. "\n")
 				end
 			end
 
@@ -1535,14 +1634,23 @@ local function runGenerate(isRefine)
 			if not currentTitle then
 				return
 			end
-			local baseName = "Step" .. tostring(stepIndex) .. "_" .. sanitizeInstanceName(currentTitle)
-			local ok, insertErr, createdName = insertScriptNoOverwrite(generatedFolder, baseName, currentCode)
+			local targetParent, scriptName, usedExplorerPath, targetErr = resolveScriptTarget(currentTitle, generatedFolder)
+			if targetErr then
+				local pathErrFrame = createStepTitle(scrolling, "Path Warning")
+				highlightStep(pathErrFrame)
+				appendStreamingText(scrolling, "-- ", targetErr .. ". Using Workspace.AI_Generated fallback.\n")
+			end
+			local baseName = usedExplorerPath and scriptName or ("Step" .. tostring(stepIndex) .. "_" .. sanitizeInstanceName(currentTitle))
+			local ok, insertErr, createdName = insertScriptNoOverwrite(targetParent, baseName, currentCode)
 			if not ok then
 				local errFrame = createStepTitle(scrolling, "Insertion Error")
 				highlightStep(errFrame)
 				appendStreamingText(scrolling, "-- ", tostring(insertErr) .. "\n")
 			else
 				usedNames[createdName] = true
+				if usedExplorerPath then
+					appendStreamingText(scrolling, "-- ", "Created " .. targetParent:GetFullName() .. "." .. createdName .. "\n")
+				end
 			end
 		end
 
@@ -1671,13 +1779,16 @@ local function tryAutoFixFromMessage(message)
 	end
 	lastFixAttemptAtByName[scriptName] = now
 
-	local folder = workspace:FindFirstChild("AI_Generated")
-	if not folder or not folder:IsA("Folder") then
-		return
-	end
-	local scriptObj = folder:FindFirstChild(scriptName)
+	local scriptObj = scriptObjectByDebugKey[scriptName]
 	if not scriptObj or not scriptObj:IsA("Script") then
-		return
+		local folder = workspace:FindFirstChild("AI_Generated")
+		if not folder or not folder:IsA("Folder") then
+			return
+		end
+		scriptObj = folder:FindFirstChild(scriptName)
+		if not scriptObj or not scriptObj:IsA("Script") then
+			return
+		end
 	end
 
 	local original = scriptOriginalSourceByName[scriptName]
