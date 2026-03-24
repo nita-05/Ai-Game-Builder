@@ -119,7 +119,7 @@ local function setCanvasToBottom(scrollingFrame)
 	scrollingFrame.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 12)
 end
 
-local function createLabel(parent, text, isTitle)
+local function createLabel(parent, text, isTitle, isCode)
 	local label = Instance.new("TextLabel")	
 	label.BackgroundTransparency = isTitle and 1 or 0
 	label.BorderSizePixel = 0
@@ -127,15 +127,15 @@ local function createLabel(parent, text, isTitle)
 	label.TextYAlignment = Enum.TextYAlignment.Top
 	label.TextWrapped = true
 	label.RichText = false
-	label.Font = isTitle and Enum.Font.GothamBold or Enum.Font.Gotham
-	label.TextSize = isTitle and 16 or 13
-	label.TextColor3 = isTitle and Color3.fromRGB(30, 41, 59) or Color3.fromRGB(30, 41, 59)
+	label.Font = isTitle and Enum.Font.GothamBold or (isCode and Enum.Font.Code or Enum.Font.Gotham)
+	label.TextSize = isTitle and 16 or (isCode and 16 or 13)
+	label.TextColor3 = isCode and Color3.fromRGB(15, 23, 42) or Color3.fromRGB(30, 41, 59)
 	label.AutomaticSize = Enum.AutomaticSize.Y
 	label.Size = UDim2.new(1, -10, 0, 0)
 	label.Text = text
 	label.Parent = parent
 	if not isTitle then
-		label.BackgroundColor3 = Color3.fromRGB(238, 242, 255)
+		label.BackgroundColor3 = isCode and Color3.fromRGB(254, 243, 199) or Color3.fromRGB(238, 242, 255)
 		local pad = Instance.new("UIPadding")
 		pad.PaddingLeft = UDim.new(0, 10)
 		pad.PaddingRight = UDim.new(0, 10)
@@ -681,8 +681,8 @@ local function collectScriptsSnapshot()
 	return out
 end
 
-local function appendStreamingText(parent, prefix, fullText)
-	local label = createLabel(parent, prefix, false)
+local function appendStreamingText(parent, prefix, fullText, isCode)
+	local label = createLabel(parent, prefix, false, isCode)
 	label.Text = prefix .. tostring(fullText or "")
 	return label
 end
@@ -1932,7 +1932,7 @@ local function runGenerate(isRefine)
 				highlightStep(stepFrame)
 				stopProgressAnimation("")
 				startProgressAnimation("" .. title)
-				appendStreamingText(scrolling, "", code .. "\n")
+				appendStreamingText(scrolling, "", code .. "\n", true)
 
 				local targetParent, scriptName, usedExplorerPath, targetErr = resolveScriptTarget(title, generatedFolder)
 				if targetErr then
@@ -2024,7 +2024,7 @@ local function runGenerate(isRefine)
 			highlightStep(currentFrame)
 			stopProgressAnimation("")
 			startProgressAnimation(title)
-			currentCodeLabel = createLabel(scrolling, "", false)
+			currentCodeLabel = createLabel(scrolling, "", false, true)
 			currentCodeLabel.Text = ""
 		end
 
