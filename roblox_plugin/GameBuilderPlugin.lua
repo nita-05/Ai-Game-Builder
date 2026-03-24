@@ -1,5 +1,6 @@
 local HttpService = game:GetService("HttpService")
 local LogService = game:GetService("LogService")
+local RunService = game:GetService("RunService")
 
 local TOOLBAR_NAME = "AI Game Builder"
 local BUTTON_NAME = "Game Builder"
@@ -890,7 +891,7 @@ local function showError(message)
 end
 
 local function callGenerate(prompt, previousCode)
-	if not HttpService.HttpEnabled then
+	if (not HttpService.HttpEnabled) and (not RunService:IsStudio()) then
 		return nil, "HttpService is disabled. Enable it in Game Settings > Security (Studio Access to API Services)."
 	end
 
@@ -927,7 +928,7 @@ local function callGenerate(prompt, previousCode)
 end
 
 local function callMemorySaveBuild(promptText, mode)
-	if not HttpService.HttpEnabled then
+	if (not HttpService.HttpEnabled) and (not RunService:IsStudio()) then
 		return nil, "HttpService is disabled. Enable it in Game Settings > Security (Studio Access to API Services)."
 	end
 
@@ -971,7 +972,7 @@ local function callMemorySaveBuild(promptText, mode)
 end
 
 local function callMemoryListBuilds()
-	if not HttpService.HttpEnabled then
+	if (not HttpService.HttpEnabled) and (not RunService:IsStudio()) then
 		return nil, "HttpService is disabled. Enable it in Game Settings > Security (Studio Access to API Services)."
 	end
 
@@ -999,7 +1000,7 @@ local function callMemoryListBuilds()
 end
 
 local function callMemoryGetBuild(buildId)
-	if not HttpService.HttpEnabled then
+	if (not HttpService.HttpEnabled) and (not RunService:IsStudio()) then
 		return nil, "HttpService is disabled. Enable it in Game Settings > Security (Studio Access to API Services)."
 	end
 
@@ -1100,7 +1101,7 @@ refreshBuildsButton.MouseButton1Click:Connect(function()
 end)
 
 local function callToolsPlan(promptText)
-	if not HttpService.HttpEnabled then
+	if (not HttpService.HttpEnabled) and (not RunService:IsStudio()) then
 		return nil, "HttpService is disabled. Enable it in Game Settings > Security (Studio Access to API Services)."
 	end
 
@@ -1189,7 +1190,7 @@ executeToolsButton.MouseButton1Click:Connect(function()
 end)
 
 local function callStart(prompt)
-	if not HttpService.HttpEnabled then
+	if (not HttpService.HttpEnabled) and (not RunService:IsStudio()) then
 		return nil, "HttpService is disabled. Enable it in Game Settings > Security (Studio Access to API Services)."
 	end
 
@@ -1222,7 +1223,7 @@ local function callStart(prompt)
 end
 
 local function callRefineStart(prompt, previousCode)
-	if not HttpService.HttpEnabled then
+	if (not HttpService.HttpEnabled) and (not RunService:IsStudio()) then
 		return nil, "HttpService is disabled. Enable it in Game Settings > Security (Studio Access to API Services)."
 	end
 
@@ -1258,7 +1259,7 @@ local function callRefineStart(prompt, previousCode)
 end
 
 local function callStartLive(prompt)
-	if not HttpService.HttpEnabled then
+	if (not HttpService.HttpEnabled) and (not RunService:IsStudio()) then
 		return nil, "HttpService is disabled. Enable it in Game Settings > Security (Studio Access to API Services)."
 	end
 
@@ -1291,7 +1292,7 @@ local function callStartLive(prompt)
 end
 
 local function callStream(sessionId)
-	if not HttpService.HttpEnabled then
+	if (not HttpService.HttpEnabled) and (not RunService:IsStudio()) then
 		return nil, "HttpService is disabled. Enable it in Game Settings > Security (Studio Access to API Services)."
 	end
 
@@ -1321,7 +1322,7 @@ local function callStream(sessionId)
 end
 
 local function callFix(errorMessage, code)
-	if not HttpService.HttpEnabled then
+	if (not HttpService.HttpEnabled) and (not RunService:IsStudio()) then
 		return nil, "HttpService is disabled. Enable it in Game Settings > Security (Studio Access to API Services)."
 	end
 
@@ -1352,7 +1353,7 @@ local function callFix(errorMessage, code)
 end
 
 local function callDebug(errorMessage, code)
-	if not HttpService.HttpEnabled then
+	if (not HttpService.HttpEnabled) and (not RunService:IsStudio()) then
 		return nil, "HttpService is disabled. Enable it in Game Settings > Security (Studio Access to API Services)."
 	end
 
